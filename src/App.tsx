@@ -13,14 +13,6 @@ interface FormData {
   notes?: string;
 }
 
-interface Customer extends FormData {
-  _id?: string;
-  id?: string;
-  summary?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
 export default function App() {
   const [formData, setFormData] = useState<FormData>({
     firstName: '',
