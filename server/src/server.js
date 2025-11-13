@@ -14,6 +14,7 @@ app.use(morgan('dev'));
 
 // Routes
 app.use('/api/customers', require('./routes/customers'));
+app.use('/api/admin', require('./routes/admin'));
 
 // Health
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
