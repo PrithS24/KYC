@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import './App.css';
+import AdminDashboard from './AdminDashboard';
 
 interface FormData {
   firstName: string;
@@ -16,6 +17,8 @@ interface FormData {
   notes: string;
 }
 
+type AuthMode = 'login' | 'signup';
+
 function EKYCMark() {
   return (
     <div className="logo-mark">
@@ -24,6 +27,8 @@ function EKYCMark() {
     </div>
   );
 }
+
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000';
 
 const createInitialFormState = (): FormData => ({
   firstName: '',
@@ -40,18 +45,163 @@ const createInitialFormState = (): FormData => ({
   notes: '',
 });
 
+interface AdminAuthModalProps {
+  open: boolean;
+  mode: AuthMode;
+  onClose: () => void;
+  onToggleMode: () => void;
+  form: { email: string; password: string; confirmPassword: string };
+  status: 'idle' | 'loading' | 'success' | 'error';
+  message: string;
+  emailStatus: 'valid' | 'invalid' | null;
+  visibility: { password: boolean; confirm: boolean };
+  onToggleVisibility: (field: 'password' | 'confirm') => void;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
+}
+
+function AdminAuthModal({
+  open,
+  mode,
+  onClose,
+  onToggleMode,
+  form,
+  status,
+  message,
+  emailStatus,
+  visibility,
+  onToggleVisibility,
+  onChange,
+  onSubmit,
+}: AdminAuthModalProps) {
+  if (!open) return null;
+
+  return (
+    <div className="modal-overlay" role="dialog" aria-modal="true">
+      <div className="modal-card glass-card">
+        <button className="modal-close" onClick={onClose} aria-label="Close admin modal">
+          ×
+        </button>
+        <p className="eyebrow">{mode === 'login' ? 'Admin access' : 'Create admin account'}</p>
+        <h3>{mode === 'login' ? 'Admin Login' : 'Admin Signup'}</h3>
+        <p className="modal-subtitle">
+          {mode === 'login'
+            ? 'Sign in to manage customer PDFs and review analytics.'
+            : 'Provision a secure admin identity with 2-step verification.'}
+        </p>
+
+        {message && <div className={`message message-${status}`}>{message}</div>}
+
+        <form className="admin-form" onSubmit={onSubmit}>
+          <label className="form-control full-width">
+            <span>Email</span>
+            <input
+              type="email"
+              name="email"
+              value={form.email}
+              onChange={onChange}
+              required
+              autoComplete="email"
+              className={emailStatus === 'invalid' ? 'input-error' : undefined}
+            />
+            {emailStatus === 'invalid' && (
+              <small className="email-hint error">Enter a valid email address.</small>
+            )}
+            {emailStatus === 'valid' && (
+              <small className="email-hint success">Looks like a valid email.</small>
+            )}
+          </label>
+          <label className="form-control full-width">
+            <span>Password</span>
+            <div className="input-with-action">
+              <input
+                type={visibility.password ? 'text' : 'password'}
+                name="password"
+                value={form.password}
+                onChange={onChange}
+                minLength={6}
+                required
+                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+              />
+              <button
+                type="button"
+                className="eye-toggle"
+                onClick={() => onToggleVisibility('password')}
+                aria-label={visibility.password ? 'Hide password' : 'Show password'}
+              >
+                {visibility.password ? '🙈' : '👁'}
+              </button>
+            </div>
+          </label>
+          {mode === 'signup' && (
+            <label className="form-control full-width">
+              <span>Confirm password</span>
+              <div className="input-with-action">
+                <input
+                  type={visibility.confirm ? 'text' : 'password'}
+                  name="confirmPassword"
+                  value={form.confirmPassword}
+                  onChange={onChange}
+                  minLength={6}
+                  required
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  className="eye-toggle"
+                  onClick={() => onToggleVisibility('confirm')}
+                  aria-label={visibility.confirm ? 'Hide confirm password' : 'Show confirm password'}
+                >
+                  {visibility.confirm ? '🙈' : '👁'}
+                </button>
+              </div>
+            </label>
+          )}
+          <button className="btn btn-primary" type="submit" disabled={status === 'loading'}>
+            {status === 'loading'
+              ? 'Processing...'
+              : mode === 'login'
+              ? 'Login'
+              : 'Create account'}
+          </button>
+        </form>
+
+        <p className="modal-switch">
+          {mode === 'login' ? "Don't have admin access?" : 'Already verified?'}{' '}
+          <button type="button" onClick={onToggleMode}>
+            {mode === 'login' ? 'Create account' : 'Login instead'}
+          </button>
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [formData, setFormData] = useState<FormData>(createInitialFormState());
   const [totalRegistrations, setTotalRegistrations] = useState(0);
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState('');
   const [emailStatus, setEmailStatus] = useState<'valid' | 'invalid' | null>(null);
+  const [adminModalOpen, setAdminModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<AuthMode>('login');
+  const [adminForm, setAdminForm] = useState({
+    email: '',
+    password: '',
+    confirmPassword: '',
+  });
+  const [adminEmailStatus, setAdminEmailStatus] = useState<'valid' | 'invalid' | null>(null);
+  const [passwordVisibility, setPasswordVisibility] = useState({ password: false, confirm: false });
+  const [adminStatus, setAdminStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [adminMessage, setAdminMessage] = useState('');
+  const [adminToken, setAdminToken] = useState<string | null>(null);
+  const [view, setView] = useState<'public' | 'admin'>('public');
   const REGISTRATION_LIMIT = 1000;
 
   useEffect(() => {
     const fetchTotal = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/customers');
+        const response = await fetch(`${API_BASE}/api/customers`);
         if (response.ok) {
           const data = await response.json();
           setTotalRegistrations(Array.isArray(data) ? data.length : 0);
@@ -63,7 +213,57 @@ export default function App() {
     fetchTotal();
   }, []);
 
+  useEffect(() => {
+    const stored = localStorage.getItem('adminToken');
+    if (stored) {
+      verifyAdminToken(stored);
+    }
+  }, []);
+
+  const verifyAdminToken = async (token: string) => {
+    try {
+      const response = await fetch(`${API_BASE}/api/admin/verify`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error('Invalid token');
+      setAdminToken(token);
+      setView('admin');
+    } catch {
+      localStorage.removeItem('adminToken');
+      setAdminToken(null);
+      setView('public');
+    }
+  };
+
   const isGmail = (email: string) => /^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(email.trim());
+
+  const openAdminModal = (mode: AuthMode) => {
+    setAuthMode(mode);
+    setAdminModalOpen(true);
+    setAdminStatus('idle');
+    setAdminMessage('');
+    setAdminForm({ email: '', password: '', confirmPassword: '' });
+    setAdminEmailStatus(null);
+    setPasswordVisibility({ password: false, confirm: false });
+  };
+
+  const closeAdminModal = () => {
+    setAdminModalOpen(false);
+    setAdminForm({ email: '', password: '', confirmPassword: '' });
+    setAdminStatus('idle');
+    setAdminMessage('');
+    setAdminEmailStatus(null);
+    setPasswordVisibility({ password: false, confirm: false });
+  };
+
+  const toggleAuthMode = () => {
+    setAuthMode(prev => (prev === 'login' ? 'signup' : 'login'));
+    setAdminStatus('idle');
+    setAdminMessage('');
+    setAdminForm({ email: '', password: '', confirmPassword: '' });
+    setAdminEmailStatus(null);
+    setPasswordVisibility({ password: false, confirm: false });
+  };
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -80,6 +280,79 @@ export default function App() {
       } else {
         setEmailStatus(isGmail(value) ? 'valid' : 'invalid');
       }
+    }
+  };
+
+  const handleAdminChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.currentTarget;
+    setAdminForm(prev => ({ ...prev, [name]: value }));
+    if (name === 'email') {
+      if (!value.trim()) {
+        setAdminEmailStatus(null);
+      } else {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        setAdminEmailStatus(emailRegex.test(value.trim()) ? 'valid' : 'invalid');
+      }
+    }
+  };
+
+  const handlePasswordVisibility = (field: 'password' | 'confirm') => {
+    setPasswordVisibility(prev => ({ ...prev, [field]: !prev[field] }));
+  };
+
+  const handleAdminSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    if (authMode === 'signup' && adminForm.password !== adminForm.confirmPassword) {
+      setAdminStatus('error');
+      setAdminMessage('Passwords do not match.');
+      return;
+    }
+
+    try {
+      setAdminStatus('loading');
+      setAdminMessage('');
+
+      const endpoint = authMode === 'login' ? 'login' : 'signup';
+      const response = await fetch(`${API_BASE}/api/admin/${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: adminForm.email.trim(),
+          password: adminForm.password,
+          ...(authMode === 'signup' ? { confirmPassword: adminForm.confirmPassword } : {}),
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Authentication failed');
+      }
+
+      if (data.token && authMode === 'login') {
+        localStorage.setItem('adminToken', data.token);
+        setAdminToken(data.token);
+        setView('admin');
+      }
+
+      setAdminStatus('success');
+      setAdminMessage(
+        authMode === 'login'
+          ? 'Login successful.'
+          : 'Account created. You can login now.'
+      );
+
+      if (authMode === 'login' && data.token) {
+        setTimeout(() => {
+          closeAdminModal();
+        }, 600);
+      } else if (authMode === 'signup') {
+        setAuthMode('login');
+      }
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : 'Authentication error';
+      setAdminStatus('error');
+      setAdminMessage(errMsg);
     }
   };
 
@@ -103,7 +376,7 @@ export default function App() {
     setMessage('');
 
     try {
-      const response = await fetch('http://localhost:5000/api/customers', {
+      const response = await fetch(`${API_BASE}/api/customers`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -143,7 +416,12 @@ export default function App() {
   };
 
   const availableRegistrations = Math.max(0, REGISTRATION_LIMIT - totalRegistrations);
-  const progressPercent = Math.min(100, Math.round((totalRegistrations / REGISTRATION_LIMIT) * 100));
+  const usedPercentage = (totalRegistrations / REGISTRATION_LIMIT) * 100;
+  const progressPercent = Math.min(100, Number(usedPercentage.toFixed(1)));
+  const progressDisplay = progressPercent % 1 === 0
+    ? progressPercent.toFixed(0)
+    : progressPercent.toFixed(1);
+
   const stats = [
     { label: 'Registrations', value: totalRegistrations, meta: 'Verified customers' },
     { label: 'Slots left', value: availableRegistrations, meta: 'Available seats' },
@@ -151,17 +429,30 @@ export default function App() {
   ];
 
   const journeySteps = [
-    { icon: 'PS', title: 'Pre-screening', desc: 'Instant sanctions & watchlist scan before submission.' },
-    { icon: 'AI', title: 'LLM insights', desc: 'AI summarises every profile for analyst hand-off.' },
-    { icon: 'SEC', title: 'Secure vault', desc: 'Bank-grade encryption for every data point.' },
+    { icon: '🛰️', title: 'Pre-screening', desc: 'Instant sanctions & watchlist scan before submission.' },
+    { icon: '🤖', title: 'LLM insights', desc: 'AI summarises every profile for analyst hand-off.' },
+    { icon: '🔐', title: 'Secure vault', desc: 'Bank-grade encryption for every data point.' },
   ];
-
 
   const insightTips = [
     'Use an institutional email to accelerate verification.',
     'Double-check DOB and ID numbers for instant approval.',
     'Keep emergency contact handy for on-demand follow-ups.',
   ];
+
+  const handleAdminLogout = () => {
+    localStorage.removeItem('adminToken');
+    setAdminToken(null);
+    setView('public');
+  };
+
+  if (view === 'admin' && adminToken) {
+    return (
+      <div className="app">
+        <AdminDashboard token={adminToken} onLogout={handleAdminLogout} />
+      </div>
+    );
+  }
 
   return (
     <div className="app">
@@ -172,15 +463,13 @@ export default function App() {
           <div className="brand">
             <EKYCMark />
             <div>
-              <span className="brand-kicker">NOVA ID LAB</span>
+              <span className="brand-kicker">ELECTRONIC KNOW YOUR CUSTOMER</span>
               <p className="brand-title">eKYC Copilot</p>
             </div>
           </div>
           <button
             className="admin-button"
-            onClick={() => {
-              window.location.href = '/admin';
-            }}
+            onClick={() => openAdminModal('login')}
           >
             Admin Login
           </button>
@@ -208,7 +497,7 @@ export default function App() {
                 className="progress-ring"
                 style={{ '--progress': `${progressPercent}%` } as React.CSSProperties}
               >
-                <span>{progressPercent}%</span>
+                <span>{progressDisplay}%</span>
               </div>
               <div className="progress-copy">
                 <p>Capacity</p>
@@ -293,7 +582,7 @@ export default function App() {
                     className={emailStatus === 'invalid' ? 'input-error' : undefined}
                   />
                   {emailStatus === 'invalid' && (
-                    <small className="email-hint error">Please use a valid gmail.com address.</small>
+                    <small className="email-hint error">Please use a gmail.com address.</small>
                   )}
                   {emailStatus === 'valid' && (
                     <small className="email-hint success">gmail.com address detected.</small>
@@ -456,6 +745,21 @@ export default function App() {
           </aside>
         </div>
       </main>
+
+      <AdminAuthModal
+        open={adminModalOpen}
+        mode={authMode}
+        onClose={closeAdminModal}
+        onToggleMode={toggleAuthMode}
+        form={adminForm}
+        status={adminStatus}
+        message={adminMessage}
+        emailStatus={adminEmailStatus}
+        visibility={passwordVisibility}
+        onToggleVisibility={handlePasswordVisibility}
+        onChange={handleAdminChange}
+        onSubmit={handleAdminSubmit}
+      />
     </div>
   );
 }

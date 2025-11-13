@@ -14,7 +14,17 @@ const CustomerSchema = new Schema(
     notes: { type: String },
     currentAddress: { type: String, required: true, trim: true },
     permanentAddress: { type: String, required: true, trim: true },
-    summary: { type: String }
+    summary: { type: String },
+    status: {
+      type: String,
+      enum: ['pending', 'approved', 'rejected'],
+      default: 'pending',
+      index: true
+    },
+    approvedAt: { type: Date },
+    rejectedAt: { type: Date },
+    pdfPath: { type: String },
+    pdfGeneratedAt: { type: Date }
   },
   { timestamps: true }
 );
