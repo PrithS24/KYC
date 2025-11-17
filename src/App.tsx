@@ -628,7 +628,9 @@ export default function App() {
                   <input
                     type="text"
                     name="firstName"
-                    ref={el => (fieldRefs.current.firstName = el)}
+                    ref={el => {
+                      fieldRefs.current.firstName = el;
+                    }}
                     value={formData.firstName}
                     onChange={handleChange}
                     onKeyDown={e => handleFieldNav('firstName', e)}
@@ -641,7 +643,9 @@ export default function App() {
                   <input
                     type="text"
                     name="lastName"
-                    ref={el => (fieldRefs.current.lastName = el)}
+                    ref={el => {
+                      fieldRefs.current.lastName = el;
+                    }}
                     value={formData.lastName}
                     onChange={handleChange}
                     onKeyDown={e => handleFieldNav('lastName', e)}
@@ -654,7 +658,9 @@ export default function App() {
                   <input
                     type="email"
                     name="email"
-                    ref={el => (fieldRefs.current.email = el)}
+                    ref={el => {
+                      fieldRefs.current.email = el;
+                    }}
                     value={formData.email}
                     onChange={handleChange}
                     onKeyDown={e => handleFieldNav('email', e)}
@@ -674,7 +680,9 @@ export default function App() {
                   <input
                     type="tel"
                     name="phone"
-                    ref={el => (fieldRefs.current.phone = el)}
+                    ref={el => {
+                      fieldRefs.current.phone = el;
+                    }}
                     value={formData.phone}
                     onChange={handleChange}
                     onKeyDown={e => handleFieldNav('phone', e)}
@@ -687,7 +695,9 @@ export default function App() {
                   <input
                     type="date"
                     name="dateOfBirth"
-                    ref={el => (fieldRefs.current.dateOfBirth = el)}
+                    ref={el => {
+                      fieldRefs.current.dateOfBirth = el;
+                    }}
                     value={formData.dateOfBirth}
                     onChange={handleChange}
                     onKeyDown={e => handleFieldNav('dateOfBirth', e)}
@@ -700,7 +710,9 @@ export default function App() {
                   <input
                     type="text"
                     name="nationality"
-                    ref={el => (fieldRefs.current.nationality = el)}
+                    ref={el => {
+                      fieldRefs.current.nationality = el;
+                    }}
                     value={formData.nationality}
                     onChange={handleChange}
                     onKeyDown={e => handleFieldNav('nationality', e)}
@@ -712,7 +724,9 @@ export default function App() {
                   <span>Gender *</span>
                   <select
                     name="gender"
-                    ref={el => (fieldRefs.current.gender = el)}
+                    ref={el => {
+                      fieldRefs.current.gender = el;
+                    }}
                     value={formData.gender}
                     onChange={handleChange}
                     onKeyDown={e => handleFieldNav('gender', e)}
@@ -730,7 +744,9 @@ export default function App() {
                   <input
                     type="number"
                     name="age"
-                    ref={el => (fieldRefs.current.age = el)}
+                    ref={el => {
+                      fieldRefs.current.age = el;
+                    }}
                     value={formData.age}
                     onChange={handleChange}
                     onKeyDown={e => handleFieldNav('age', e)}
@@ -745,7 +761,9 @@ export default function App() {
                   <input
                     type="number"
                     name="yearlyIncome"
-                    ref={el => (fieldRefs.current.yearlyIncome = el)}
+                    ref={el => {
+                      fieldRefs.current.yearlyIncome = el;
+                    }}
                     value={formData.yearlyIncome}
                     onChange={handleChange}
                     onKeyDown={e => handleFieldNav('yearlyIncome', e)}
@@ -760,7 +778,9 @@ export default function App() {
                 <span>Current address *</span>
                 <textarea
                   name="currentAddress"
-                  ref={el => (fieldRefs.current.currentAddress = el)}
+                  ref={el => {
+                    fieldRefs.current.currentAddress = el;
+                  }}
                   value={formData.currentAddress}
                   onChange={handleChange}
                   onKeyDown={e => handleFieldNav('currentAddress', e)}
@@ -773,7 +793,9 @@ export default function App() {
                 <span>Permanent address *</span>
                 <textarea
                   name="permanentAddress"
-                  ref={el => (fieldRefs.current.permanentAddress = el)}
+                  ref={el => {
+                    fieldRefs.current.permanentAddress = el;
+                  }}
                   value={formData.permanentAddress}
                   onChange={handleChange}
                   onKeyDown={e => handleFieldNav('permanentAddress', e)}
@@ -786,7 +808,9 @@ export default function App() {
                 <span>Notes</span>
                 <textarea
                   name="notes"
-                  ref={el => (fieldRefs.current.notes = el)}
+                  ref={el => {
+                    fieldRefs.current.notes = el;
+                  }}
                   value={formData.notes}
                   onChange={handleChange}
                   onKeyDown={e => handleFieldNav('notes', e)}

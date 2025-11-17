@@ -9,7 +9,7 @@ const {
   generateAndAttachPdf,
   isRabbitEnabled,
 } = require('../services/pdfQueue');
-const { enqueueMailJob } = require('../services/mailQueue');
+const { enqueueMailJob, sendMailNow } = require('../services/mailQueue');
 
 // GET all customers
 router.get('/', async (_req, res) => {
@@ -129,16 +129,22 @@ router.patch('/:id/approve', authenticateToken, async (req, res) => {
         .json({ success: true, message: 'Customer approved, PDF queued', data: customer });
     }
     const updated = await generateAndAttachPdf(customer);
-    if (isRabbitEnabled()) {
-      try {
+    try {
+      if (isRabbitEnabled()) {
         await enqueueMailJob({
           customerId: updated._id.toString(),
           type: 'approved',
           pdfPath: updated.pdfPath,
         });
-      } catch (mailErr) {
-        console.warn('Mail queue enqueue failed:', mailErr.message);
+      } else {
+        await sendMailNow({
+          customerId: updated._id.toString(),
+          type: 'approved',
+          pdfPath: updated.pdfPath,
+        });
       }
+    } catch (mailErr) {
+      console.warn('Mail send failed:', mailErr.message);
     }
     res.json({ success: true, message: 'Customer approved', data: updated });
   } catch (err) {
@@ -156,12 +162,14 @@ router.patch('/:id/reject', authenticateToken, async (req, res) => {
       { new: true }
     );
     if (!customer) return res.status(404).json({ error: 'Customer not found' });
-    if (isRabbitEnabled()) {
-      try {
+    try {
+      if (isRabbitEnabled()) {
         await enqueueMailJob({ customerId: customer._id.toString(), type: 'rejected' });
-      } catch (mailErr) {
-        console.warn('Mail queue enqueue failed:', mailErr.message);
+      } else {
+        await sendMailNow({ customerId: customer._id.toString(), type: 'rejected' });
       }
+    } catch (mailErr) {
+      console.warn('Mail send failed:', mailErr.message);
     }
     res.json({ success: true, message: 'Customer rejected', data: customer });
   } catch (err) {
@@ -193,12 +201,14 @@ router.post('/:id/pdf', authenticateToken, async (req, res) => {
     }
 
     const updated = await generateAndAttachPdf(customer);
-    if (isRabbitEnabled()) {
-      try {
+    try {
+      if (isRabbitEnabled()) {
         await enqueueMailJob({ customerId: updated._id.toString(), type: 'approved', pdfPath: updated.pdfPath });
-      } catch (mailErr) {
-        console.warn('Mail queue enqueue failed:', mailErr.message);
+      } else {
+        await sendMailNow({ customerId: updated._id.toString(), type: 'approved', pdfPath: updated.pdfPath });
       }
+    } catch (mailErr) {
+      console.warn('Mail send failed:', mailErr.message);
     }
     return res.json({
       message: 'PDF generated successfully',

@@ -61,6 +61,41 @@ function buildTransport() {
   });
 }
 
+async function sendMailNow(payload) {
+  const transport = buildTransport();
+  if (!transport) throw new Error('SMTP not configured');
+  const customer = await Customer.findById(payload.customerId);
+  if (!customer) throw new Error(`Customer ${payload.customerId} not found`);
+
+  const from = process.env.FROM_EMAIL || 'no-reply@example.com';
+  const to = customer.email;
+  if (!to) throw new Error('Customer email missing');
+
+  if (payload.type === 'approved') {
+    const attachments = [];
+    if (payload.pdfPath) {
+      const abs = path.join(__dirname, '../../', payload.pdfPath.replace(/^\//, ''));
+      if (fs.existsSync(abs)) {
+        attachments.push({ filename: path.basename(abs), path: abs });
+      }
+    }
+    await transport.sendMail({
+      from,
+      to,
+      subject: 'KYC Approved & PDF Attached',
+      text: `Hello ${customer.firstName}, your KYC was approved. Summary: ${customer.summary || ''}`,
+      attachments,
+    });
+  } else if (payload.type === 'rejected') {
+    await transport.sendMail({
+      from,
+      to,
+      subject: 'KYC Rejected',
+      text: `Hello ${customer.firstName}, your KYC submission was rejected. Please resubmit with the required details.`,
+    });
+  }
+}
+
 async function startMailWorker() {
   if (!isRabbitEnabled()) {
     console.warn('RabbitMQ disabled; mail worker not started.');
@@ -125,4 +160,4 @@ async function startMailWorker() {
   );
 }
 
-module.exports = { enqueueMailJob, startMailWorker, isRabbitEnabled };
+module.exports = { enqueueMailJob, startMailWorker, isRabbitEnabled, sendMailNow };
