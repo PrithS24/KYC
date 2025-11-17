@@ -14,6 +14,11 @@ router.post('/signup', async (req, res) => {
       return res.status(400).json({ error: 'All fields are required' });
     }
 
+    const allowedDomain = /^[^@\s]+@selise\.ac\.sw$/i;
+    if (!allowedDomain.test(email)) {
+      return res.status(400).json({ error: 'Email must be at selise.ac.sw' });
+    }
+
     if (password !== confirmPassword) {
       return res.status(400).json({ error: 'Passwords do not match' });
     }
@@ -57,6 +62,11 @@ router.post('/login', async (req, res) => {
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    const allowedDomain = /^[^@\s]+@selise\.ac\.sw$/i;
+    if (!allowedDomain.test(email)) {
+      return res.status(400).json({ error: 'Email must be at selise.ac.sw' });
     }
 
     // Find admin by email

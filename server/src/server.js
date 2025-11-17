@@ -6,6 +6,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const { connectDB } = require('./db');
 const { startPdfWorker, isRabbitEnabled } = require('./services/pdfQueue');
+const { startMailWorker } = require('./services/mailQueue');
 
 const app = express();
 
@@ -34,7 +35,12 @@ const PORT = process.env.PORT || 5000;
   console.log('Booting server...');
   await connectDB(process.env.MONGODB_URI);
   if (isRabbitEnabled()) {
-    await startPdfWorker();
+    try {
+      await startPdfWorker();
+      await startMailWorker();
+    } catch (err) {
+      console.warn('Queue workers not started:', err.message || err);
+    }
   } else {
     console.warn('RabbitMQ disabled; synchronous PDF generation enabled.');
   }

@@ -92,23 +92,23 @@ function AdminAuthModal({
 
         {message && <div className={`message message-${status}`}>{message}</div>}
 
-        <form className="admin-form" onSubmit={onSubmit}>
+        <form className="admin-form" onSubmit={onSubmit} autoComplete="off">
           <label className="form-control full-width">
             <span>Email</span>
             <input
               type="email"
-              name="email"
+              name="adminEmail"
               value={form.email}
               onChange={onChange}
               required
-              autoComplete="email"
+              autoComplete="off"
               className={emailStatus === 'invalid' ? 'input-error' : undefined}
             />
             {emailStatus === 'invalid' && (
-              <small className="email-hint error">Enter a valid email address.</small>
+              <small className="email-hint error">Use a valid @selise.ac.sw email.</small>
             )}
             {emailStatus === 'valid' && (
-              <small className="email-hint success">Looks like a valid email.</small>
+              <small className="email-hint success">Domain accepted.</small>
             )}
           </label>
           <label className="form-control full-width">
@@ -116,12 +116,12 @@ function AdminAuthModal({
             <div className="input-with-action">
               <input
                 type={visibility.password ? 'text' : 'password'}
-                name="password"
+                name="adminPassword"
                 value={form.password}
                 onChange={onChange}
                 minLength={6}
                 required
-                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                autoComplete="off"
               />
               <button
                 type="button"
@@ -139,13 +139,13 @@ function AdminAuthModal({
               <div className="input-with-action">
                 <input
                   type={visibility.confirm ? 'text' : 'password'}
-                  name="confirmPassword"
+                  name="adminConfirmPassword"
                   value={form.confirmPassword}
                   onChange={onChange}
                   minLength={6}
                   required
-                  autoComplete="new-password"
-                />
+                  autoComplete="off"
+              />
                 <button
                   type="button"
                   className="eye-toggle"
@@ -196,7 +196,72 @@ export default function App() {
   const [adminMessage, setAdminMessage] = useState('');
   const [adminToken, setAdminToken] = useState<string | null>(null);
   const [view, setView] = useState<'public' | 'admin'>('public');
+  const fieldOrder = [
+    'firstName',
+    'lastName',
+    'email',
+    'phone',
+    'dateOfBirth',
+    'nationality',
+    'gender',
+    'age',
+    'yearlyIncome',
+    'currentAddress',
+    'permanentAddress',
+    'notes',
+  ] as const;
+  const fieldRefs = React.useRef<Record<
+    (typeof fieldOrder)[number],
+    HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null
+  >>({
+    firstName: null,
+    lastName: null,
+    email: null,
+    phone: null,
+    dateOfBirth: null,
+    nationality: null,
+    gender: null,
+    age: null,
+    yearlyIncome: null,
+    currentAddress: null,
+    permanentAddress: null,
+    notes: null,
+  });
   const REGISTRATION_LIMIT = 1000;
+
+  const adminEmailAllowed = (val: string) =>
+    /^[^\s@]+@selise\.ac\.sw$/i.test(val.trim());
+
+  const focusField = (name: (typeof fieldOrder)[number]) => {
+    const el = fieldRefs.current[name];
+    if (!el || el.hasAttribute('disabled')) return;
+    el.focus();
+    if ('select' in el && typeof el.select === 'function') {
+      el.select();
+    }
+  };
+
+  const handleFieldNav = (
+    name: (typeof fieldOrder)[number],
+    event: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+  ) => {
+    const { key } = event;
+    const forward = key === 'ArrowDown' || key === 'ArrowRight';
+    const backward = key === 'ArrowUp' || key === 'ArrowLeft';
+    if (!forward && !backward) return;
+    event.preventDefault();
+    const currentIndex = fieldOrder.indexOf(name);
+    let nextIndex = currentIndex + (forward ? 1 : -1);
+    while (nextIndex >= 0 && nextIndex < fieldOrder.length) {
+      const targetName = fieldOrder[nextIndex];
+      const target = fieldRefs.current[targetName];
+      if (target && !target.hasAttribute('disabled')) {
+        focusField(targetName);
+        return;
+      }
+      nextIndex += forward ? 1 : -1;
+    }
+  };
 
   useEffect(() => {
     const fetchTotal = async () => {
@@ -285,13 +350,17 @@ export default function App() {
 
   const handleAdminChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.currentTarget;
-    setAdminForm(prev => ({ ...prev, [name]: value }));
-    if (name === 'email') {
+    setAdminForm(prev => {
+      if (name === 'adminEmail') return { ...prev, email: value };
+      if (name === 'adminPassword') return { ...prev, password: value };
+      if (name === 'adminConfirmPassword') return { ...prev, confirmPassword: value };
+      return prev;
+    });
+    if (name === 'adminEmail') {
       if (!value.trim()) {
         setAdminEmailStatus(null);
       } else {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        setAdminEmailStatus(emailRegex.test(value.trim()) ? 'valid' : 'invalid');
+        setAdminEmailStatus(adminEmailAllowed(value) ? 'valid' : 'invalid');
       }
     }
   };
@@ -312,6 +381,12 @@ export default function App() {
     try {
       setAdminStatus('loading');
       setAdminMessage('');
+
+      if (!adminEmailAllowed(adminForm.email)) {
+        setAdminStatus('error');
+        setAdminMessage('Email must end with @selise.ac.sw');
+        return;
+      }
 
       const endpoint = authMode === 'login' ? 'login' : 'signup';
       const response = await fetch(`${API_BASE}/api/admin/${endpoint}`, {
@@ -464,7 +539,7 @@ export default function App() {
             <EKYCMark />
             <div>
               <span className="brand-kicker">ELECTRONIC KNOW YOUR CUSTOMER</span>
-              <p className="brand-title">eKYC Copilot</p>
+              <p className="brand-title">eKYC System</p>
             </div>
           </div>
           <button
@@ -553,8 +628,10 @@ export default function App() {
                   <input
                     type="text"
                     name="firstName"
+                    ref={el => (fieldRefs.current.firstName = el)}
                     value={formData.firstName}
                     onChange={handleChange}
+                    onKeyDown={e => handleFieldNav('firstName', e)}
                     required
                     disabled={status === 'loading'}
                   />
@@ -564,8 +641,10 @@ export default function App() {
                   <input
                     type="text"
                     name="lastName"
+                    ref={el => (fieldRefs.current.lastName = el)}
                     value={formData.lastName}
                     onChange={handleChange}
+                    onKeyDown={e => handleFieldNav('lastName', e)}
                     required
                     disabled={status === 'loading'}
                   />
@@ -575,8 +654,10 @@ export default function App() {
                   <input
                     type="email"
                     name="email"
+                    ref={el => (fieldRefs.current.email = el)}
                     value={formData.email}
                     onChange={handleChange}
+                    onKeyDown={e => handleFieldNav('email', e)}
                     required
                     disabled={status === 'loading'}
                     className={emailStatus === 'invalid' ? 'input-error' : undefined}
@@ -593,8 +674,10 @@ export default function App() {
                   <input
                     type="tel"
                     name="phone"
+                    ref={el => (fieldRefs.current.phone = el)}
                     value={formData.phone}
                     onChange={handleChange}
+                    onKeyDown={e => handleFieldNav('phone', e)}
                     required
                     disabled={status === 'loading'}
                   />
@@ -604,8 +687,10 @@ export default function App() {
                   <input
                     type="date"
                     name="dateOfBirth"
+                    ref={el => (fieldRefs.current.dateOfBirth = el)}
                     value={formData.dateOfBirth}
                     onChange={handleChange}
+                    onKeyDown={e => handleFieldNav('dateOfBirth', e)}
                     required
                     disabled={status === 'loading'}
                   />
@@ -615,8 +700,10 @@ export default function App() {
                   <input
                     type="text"
                     name="nationality"
+                    ref={el => (fieldRefs.current.nationality = el)}
                     value={formData.nationality}
                     onChange={handleChange}
+                    onKeyDown={e => handleFieldNav('nationality', e)}
                     required
                     disabled={status === 'loading'}
                   />
@@ -625,8 +712,10 @@ export default function App() {
                   <span>Gender *</span>
                   <select
                     name="gender"
+                    ref={el => (fieldRefs.current.gender = el)}
                     value={formData.gender}
                     onChange={handleChange}
+                    onKeyDown={e => handleFieldNav('gender', e)}
                     required
                     disabled={status === 'loading'}
                   >
@@ -641,8 +730,10 @@ export default function App() {
                   <input
                     type="number"
                     name="age"
+                    ref={el => (fieldRefs.current.age = el)}
                     value={formData.age}
                     onChange={handleChange}
+                    onKeyDown={e => handleFieldNav('age', e)}
                     min={18}
                     max={120}
                     required
@@ -654,8 +745,10 @@ export default function App() {
                   <input
                     type="number"
                     name="yearlyIncome"
+                    ref={el => (fieldRefs.current.yearlyIncome = el)}
                     value={formData.yearlyIncome}
                     onChange={handleChange}
+                    onKeyDown={e => handleFieldNav('yearlyIncome', e)}
                     min={0}
                     step={100}
                     required
@@ -667,8 +760,10 @@ export default function App() {
                 <span>Current address *</span>
                 <textarea
                   name="currentAddress"
+                  ref={el => (fieldRefs.current.currentAddress = el)}
                   value={formData.currentAddress}
                   onChange={handleChange}
+                  onKeyDown={e => handleFieldNav('currentAddress', e)}
                   rows={3}
                   required
                   disabled={status === 'loading'}
@@ -678,8 +773,10 @@ export default function App() {
                 <span>Permanent address *</span>
                 <textarea
                   name="permanentAddress"
+                  ref={el => (fieldRefs.current.permanentAddress = el)}
                   value={formData.permanentAddress}
                   onChange={handleChange}
+                  onKeyDown={e => handleFieldNav('permanentAddress', e)}
                   rows={3}
                   required
                   disabled={status === 'loading'}
@@ -689,8 +786,10 @@ export default function App() {
                 <span>Notes</span>
                 <textarea
                   name="notes"
+                  ref={el => (fieldRefs.current.notes = el)}
                   value={formData.notes}
                   onChange={handleChange}
+                  onKeyDown={e => handleFieldNav('notes', e)}
                   rows={4}
                   disabled={status === 'loading'}
                 />

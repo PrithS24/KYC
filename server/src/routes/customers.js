@@ -9,6 +9,7 @@ const {
   generateAndAttachPdf,
   isRabbitEnabled,
 } = require('../services/pdfQueue');
+const { enqueueMailJob } = require('../services/mailQueue');
 
 // GET all customers
 router.get('/', async (_req, res) => {
@@ -109,11 +110,37 @@ router.patch('/:id/approve', authenticateToken, async (req, res) => {
   try {
     const customer = await Customer.findByIdAndUpdate(
       req.params.id,
-      { status: 'approved', approvedAt: new Date(), rejectedAt: null },
+      { status: 'approved', approvedAt: new Date(), rejectedAt: null, pdfPath: null, pdfGeneratedAt: null },
       { new: true }
     );
     if (!customer) return res.status(404).json({ error: 'Customer not found' });
-    res.json({ success: true, message: 'Customer approved', data: customer });
+    let queued = false;
+    if (isRabbitEnabled()) {
+      try {
+        await enqueuePdfJob(customer._id.toString());
+        queued = true;
+      } catch (queueErr) {
+        console.warn('Queue unavailable, generating inline:', queueErr.message);
+      }
+    }
+    if (queued) {
+      return res
+        .status(202)
+        .json({ success: true, message: 'Customer approved, PDF queued', data: customer });
+    }
+    const updated = await generateAndAttachPdf(customer);
+    if (isRabbitEnabled()) {
+      try {
+        await enqueueMailJob({
+          customerId: updated._id.toString(),
+          type: 'approved',
+          pdfPath: updated.pdfPath,
+        });
+      } catch (mailErr) {
+        console.warn('Mail queue enqueue failed:', mailErr.message);
+      }
+    }
+    res.json({ success: true, message: 'Customer approved', data: updated });
   } catch (err) {
     console.error('Approve error:', err);
     res.status(500).json({ error: 'Failed to approve customer' });
@@ -129,6 +156,13 @@ router.patch('/:id/reject', authenticateToken, async (req, res) => {
       { new: true }
     );
     if (!customer) return res.status(404).json({ error: 'Customer not found' });
+    if (isRabbitEnabled()) {
+      try {
+        await enqueueMailJob({ customerId: customer._id.toString(), type: 'rejected' });
+      } catch (mailErr) {
+        console.warn('Mail queue enqueue failed:', mailErr.message);
+      }
+    }
     res.json({ success: true, message: 'Customer rejected', data: customer });
   } catch (err) {
     console.error('Reject error:', err);
@@ -159,6 +193,13 @@ router.post('/:id/pdf', authenticateToken, async (req, res) => {
     }
 
     const updated = await generateAndAttachPdf(customer);
+    if (isRabbitEnabled()) {
+      try {
+        await enqueueMailJob({ customerId: updated._id.toString(), type: 'approved', pdfPath: updated.pdfPath });
+      } catch (mailErr) {
+        console.warn('Mail queue enqueue failed:', mailErr.message);
+      }
+    }
     return res.json({
       message: 'PDF generated successfully',
       pdfPath: updated.pdfPath,

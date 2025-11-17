@@ -3,11 +3,20 @@ const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
 const Customer = require('../models/Customer');
+const { enqueueMailJob } = require('./mailQueue');
 
 const QUEUE = 'pdf_jobs';
 let channelPromise;
+let rabbitAvailable = true;
 
-const isRabbitEnabled = () => String(process.env.ENABLE_RABBITMQ).toLowerCase() === 'true';
+const isRabbitEnabled = () =>
+  rabbitAvailable && String(process.env.ENABLE_RABBITMQ).toLowerCase() === 'true';
+
+const disableRabbit = reason => {
+  if (!rabbitAvailable) return;
+  rabbitAvailable = false;
+  console.warn(`RabbitMQ disabled: ${reason}`);
+};
 
 const getStorageDir = () => {
   const dir = process.env.PDF_STORAGE_PATH
@@ -25,11 +34,19 @@ async function getChannel() {
   }
   if (!channelPromise) {
     channelPromise = (async () => {
-      const url = process.env.RABBITMQ_URL || 'amqp://localhost';
-      const connection = await amqp.connect(url);
-      const channel = await connection.createChannel();
-      await channel.assertQueue(QUEUE, { durable: true });
-      return channel;
+      try {
+        const url = process.env.RABBITMQ_URL || 'amqp://localhost';
+        const connection = await amqp.connect(url);
+        connection.on('error', err => disableRabbit(err.message));
+        connection.on('close', () => disableRabbit('connection closed'));
+        const channel = await connection.createChannel();
+        await channel.assertQueue(QUEUE, { durable: true });
+        return channel;
+      } catch (err) {
+        channelPromise = null;
+        disableRabbit(err.message || err);
+        throw err;
+      }
     })();
   }
   return channelPromise;
@@ -48,7 +65,13 @@ async function startPdfWorker() {
     console.warn('RabbitMQ disabled; PDF worker not started.');
     return;
   }
-  const channel = await getChannel();
+  let channel;
+  try {
+    channel = await getChannel();
+  } catch (err) {
+    console.warn(`PDF worker not started: ${err.message || err}`);
+    return;
+  }
   const storageDir = getStorageDir();
 
   channel.consume(
@@ -62,6 +85,15 @@ async function startPdfWorker() {
         if (!customer) throw new Error(`Customer ${customerId} not found`);
 
         await generateAndAttachPdf(customer, storageDir);
+        try {
+          await enqueueMailJob({
+            customerId,
+            type: 'approved',
+            pdfPath: customer.pdfPath,
+          });
+        } catch (mailErr) {
+          console.warn('Mail enqueue after PDF failed:', mailErr.message || mailErr);
+        }
         channel.ack(msg);
       } catch (err) {
         console.error('PDF job failed:', err.message);

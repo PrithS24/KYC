@@ -1,0 +1,12 @@
+node_modules
+server/node_modules
+dist
+*.log
+npm-debug.log*
+pnpm-debug.log*
+coverage
+.DS_Store
+.git
+.gitignore
+pdfs
+tmp
