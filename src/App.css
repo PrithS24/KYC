@@ -660,8 +660,8 @@ body,
 
 .info-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
 }
 
 .status-pill {
@@ -697,6 +697,7 @@ body,
   margin-top: 4px;
   color: #f8fafc;
   font-weight: 500;
+  word-break: break-word;
 }
 
 .card-actions {

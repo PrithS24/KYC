@@ -52,12 +52,14 @@ async function getChannel() {
   return channelPromise;
 }
 
-async function enqueuePdfJob(customerId) {
+async function enqueuePdfJob(customerId, { notify = false } = {}) {
   if (!isRabbitEnabled()) {
     throw new Error('RabbitMQ is disabled');
   }
   const channel = await getChannel();
-  channel.sendToQueue(QUEUE, Buffer.from(customerId), { persistent: true });
+  channel.sendToQueue(QUEUE, Buffer.from(JSON.stringify({ customerId, notify })), {
+    persistent: true,
+  });
 }
 
 async function startPdfWorker() {
@@ -78,21 +80,29 @@ async function startPdfWorker() {
     QUEUE,
     async (msg) => {
       if (!msg) return;
-      const customerId = msg.content.toString();
+      let parsed;
+      try {
+        parsed = JSON.parse(msg.content.toString());
+      } catch {
+        parsed = { customerId: msg.content.toString(), notify: true };
+      }
+      const { customerId, notify = true } = parsed;
 
       try {
         const customer = await Customer.findById(customerId);
         if (!customer) throw new Error(`Customer ${customerId} not found`);
 
         await generateAndAttachPdf(customer, storageDir);
-        try {
-          await enqueueMailJob({
-            customerId,
-            type: 'approved',
-            pdfPath: customer.pdfPath,
-          });
-        } catch (mailErr) {
-          console.warn('Mail enqueue after PDF failed:', mailErr.message || mailErr);
+        if (notify) {
+          try {
+            await enqueueMailJob({
+              customerId,
+              type: 'approved',
+              pdfPath: customer.pdfPath,
+            });
+          } catch (mailErr) {
+            console.warn('Mail enqueue after PDF failed:', mailErr.message || mailErr);
+          }
         }
         channel.ack(msg);
       } catch (err) {

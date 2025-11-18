@@ -117,7 +117,8 @@ router.patch('/:id/approve', authenticateToken, async (req, res) => {
     let queued = false;
     if (isRabbitEnabled()) {
       try {
-        await enqueuePdfJob(customer._id.toString());
+        // Queue PDF generation without emailing on approve
+        await enqueuePdfJob(customer._id.toString(), { notify: false });
         queued = true;
       } catch (queueErr) {
         console.warn('Queue unavailable, generating inline:', queueErr.message);
@@ -129,23 +130,7 @@ router.patch('/:id/approve', authenticateToken, async (req, res) => {
         .json({ success: true, message: 'Customer approved, PDF queued', data: customer });
     }
     const updated = await generateAndAttachPdf(customer);
-    try {
-      if (isRabbitEnabled()) {
-        await enqueueMailJob({
-          customerId: updated._id.toString(),
-          type: 'approved',
-          pdfPath: updated.pdfPath,
-        });
-      } else {
-        await sendMailNow({
-          customerId: updated._id.toString(),
-          type: 'approved',
-          pdfPath: updated.pdfPath,
-        });
-      }
-    } catch (mailErr) {
-      console.warn('Mail send failed:', mailErr.message);
-    }
+    // No email on approve; mail will be sent when Generate PDF is clicked.
     res.json({ success: true, message: 'Customer approved', data: updated });
   } catch (err) {
     console.error('Approve error:', err);
@@ -193,7 +178,7 @@ router.post('/:id/pdf', authenticateToken, async (req, res) => {
 
     if (isRabbitEnabled()) {
       try {
-        await enqueuePdfJob(customer._id.toString());
+        await enqueuePdfJob(customer._id.toString(), { notify: true });
         return res.status(202).json({ message: 'PDF generation queued' });
       } catch (queueErr) {
         console.warn('Queue unavailable, generating inline:', queueErr.message);
@@ -203,6 +188,7 @@ router.post('/:id/pdf', authenticateToken, async (req, res) => {
     const updated = await generateAndAttachPdf(customer);
     try {
       if (isRabbitEnabled()) {
+        // Queue mail only here (not on approve)
         await enqueueMailJob({ customerId: updated._id.toString(), type: 'approved', pdfPath: updated.pdfPath });
       } else {
         await sendMailNow({ customerId: updated._id.toString(), type: 'approved', pdfPath: updated.pdfPath });

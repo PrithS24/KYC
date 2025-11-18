@@ -46,7 +46,8 @@ export default function AdminDashboard({ token, onLogout }: AdminDashboardProps)
       });
       if (!response.ok) throw new Error('Failed to fetch customers');
       const data = await response.json();
-      setCustomers(Array.isArray(data) ? data : data.data || []);
+      const list = Array.isArray(data) ? data : data.data || [];
+      setCustomers(list.filter((c: Customer) => c.status !== 'rejected'));
       setError('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load customers');
@@ -56,7 +57,12 @@ export default function AdminDashboard({ token, onLogout }: AdminDashboardProps)
   };
 
   const updateCustomer = (updated: Customer) => {
-    setCustomers(prev => prev.map(c => (c._id === updated._id ? { ...c, ...updated } : c)));
+    setCustomers(prev => {
+      if (updated.status === 'rejected') {
+        return prev.filter(c => c._id !== updated._id);
+      }
+      return prev.map(c => (c._id === updated._id ? { ...c, ...updated } : c));
+    });
   };
 
   const removeCustomer = (id: string) => {
@@ -229,7 +235,7 @@ export default function AdminDashboard({ token, onLogout }: AdminDashboardProps)
                       Approve
                     </button>
                   )}
-                  {customer.status !== 'rejected' && (
+                  {customer.status === 'pending' && (
                     <button className="btn btn-delete" onClick={() => handleDecision(customer._id, 'reject')}>
                       Reject
                     </button>
